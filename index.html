@@ -1,0 +1,2094 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <title>Medical Rotation & Department Tracker</title>
+  <!-- Safe Tailwind CDN Pre-configuration -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              900: '#064e3b',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    html, body {
+      width: 100%;
+      min-width: 100%;
+      overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+    }
+    input, select, textarea {
+      font-size: 16px !important; /* Prevents auto-zoom on mobile safari/chrome */
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .calendar-cell {
+      min-height: 64px;
+    }
+    @media (min-width: 640px) {
+      .calendar-cell {
+        min-height: 78px;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-full flex flex-col text-slate-800 antialiased font-sans bg-slate-50">
+
+  <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-md border-b border-slate-800">
+    <div class="w-full max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2">
+      <!-- App Brand & Counter -->
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-teal-500 flex items-center justify-center text-slate-950 font-bold text-sm shadow-sm flex-shrink-0">
+          <i class="fa-solid fa-notes-medical"></i>
+        </div>
+        <div class="min-w-0 flex items-center gap-1.5 sm:gap-2">
+          <h1 class="text-sm sm:text-lg font-bold tracking-tight truncate">MedLog</h1>
+          <span id="deptCountPill" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-teal-400 border border-teal-500/30 whitespace-nowrap">
+            17 Depts
+          </span>
+        </div>
+      </div>
+
+      <!-- Action Toolbar (Responsive spacing) -->
+      <div class="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+        <!-- Add Activity Button -->
+        <button onclick="openLogModal()" class="h-8 sm:h-9 px-2.5 sm:px-3 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm transition active:scale-95">
+          <i class="fa-solid fa-plus text-[11px]"></i>
+          <span><span class="hidden sm:inline">Log </span>Activity</span>
+        </button>
+
+        <!-- Import Button & Hidden File Input -->
+        <input type="file" id="importFileInput" accept=".json" class="hidden" onchange="handleImportFileSelected(event)">
+        <button onclick="triggerImportFileInput()" title="Import All Data" class="h-8 sm:h-9 w-8 sm:w-9 bg-slate-800 hover:bg-slate-700 text-teal-400 hover:text-teal-300 rounded-lg flex items-center justify-center transition border border-slate-700 text-xs">
+          <i class="fa-solid fa-file-import"></i>
+        </button>
+
+        <!-- Export Button -->
+        <button onclick="exportDataJSON()" title="Export All Data (JSON)" class="h-8 sm:h-9 w-8 sm:w-9 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg flex items-center justify-center transition border border-slate-700 text-xs">
+          <i class="fa-solid fa-download"></i>
+        </button>
+
+        <!-- Print Button -->
+        <button onclick="window.print()" title="Print Summary" class="h-8 sm:h-9 w-8 sm:w-9 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg flex items-center justify-center transition border border-slate-700 text-xs">
+          <i class="fa-solid fa-print"></i>
+        </button>
+
+        <!-- Reset Button -->
+        <button onclick="confirmResetPrompt()" title="Reset Tracker" class="h-8 sm:h-9 w-8 sm:w-9 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded-lg flex items-center justify-center transition border border-slate-700 text-xs">
+          <i class="fa-solid fa-rotate-left"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-3.5 space-y-3.5">
+    
+    <!-- KPI CARDS: 2 Columns on mobile, 3 Columns on Tablet/Desktop -->
+    <section class="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3">
+      <!-- Rotations Progress (Spans across 2 cols on mobile) -->
+      <div class="col-span-2 md:col-span-1 bg-white rounded-2xl p-3.5 sm:p-4 shadow-sm border border-slate-200/90 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+          <span>Rotations Completed</span>
+          <div class="w-7 h-7 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-clipboard-check"></i>
+          </div>
+        </div>
+        <div class="flex items-baseline gap-1.5">
+          <span id="kpiVisitedCount" class="text-2xl sm:text-3xl font-extrabold text-slate-900">0</span>
+          <span id="kpiTotalDeptsCount" class="text-xs sm:text-sm font-semibold text-slate-500">/ 17 Today</span>
+          <span id="kpiPercentToday" class="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            0% Today
+          </span>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-2 mt-2.5 overflow-hidden">
+          <div id="kpiProgressBar" class="bg-teal-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Total Entries Card -->
+      <div class="bg-white rounded-2xl p-3.5 sm:p-4 shadow-sm border border-slate-200/90 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+          <span>Total Entries</span>
+          <div class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-stethoscope"></i>
+          </div>
+        </div>
+        <div>
+          <span id="kpiTotalLogs" class="text-2xl sm:text-3xl font-extrabold text-slate-900">0</span>
+        </div>
+        <div class="text-[11px] text-slate-400 font-medium mt-1.5 flex items-center gap-1">
+          <i class="fa-solid fa-clock-rotate-left"></i> Recorded visits
+        </div>
+      </div>
+
+      <!-- Current Date Card (Header icon avoids text overlap) -->
+      <div class="bg-white rounded-2xl p-3.5 sm:p-4 shadow-sm border border-slate-200/90 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+          <span>Current Date</span>
+          <div class="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-xs">
+            <i class="fa-solid fa-calendar-days"></i>
+          </div>
+        </div>
+        <div class="min-w-0">
+          <h3 id="currentDateDisplay" class="text-xs sm:text-sm md:text-base font-bold text-slate-900 leading-snug break-words">Loading...</h3>
+          <button onclick="filterByToday()" class="mt-1 text-[11px] sm:text-xs font-semibold text-teal-700 hover:text-teal-800 hover:underline flex items-center gap-1 truncate">
+            <i class="fa-regular fa-calendar-check text-[10px]"></i>
+            <span>Visited Today</span>
+          </button>
+        </div>
+        <div class="text-[10px] sm:text-[11px] text-slate-400 mt-1 font-medium truncate">System synced</div>
+      </div>
+    </section>
+
+    <!-- VIEW MODE SWITCHER TABS -->
+    <div class="bg-slate-200/80 p-1 rounded-xl grid grid-cols-3 w-full shadow-inner gap-1 text-xs sm:text-sm font-semibold">
+      <button id="tabDepts" onclick="switchView('departments')" class="py-2 px-1 text-center rounded-lg transition bg-white text-teal-700 shadow-sm flex items-center justify-center gap-1.5">
+        <i class="fa-solid fa-list-check"></i>
+        <span class="truncate"><span id="tabDeptsCount">17</span> Depts</span>
+      </button>
+      <button id="tabCalendar" onclick="switchView('calendar')" class="py-2 px-1 text-center rounded-lg transition text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5">
+        <i class="fa-regular fa-calendar"></i>
+        <span class="truncate">Calendar</span>
+      </button>
+      <button id="tabTimeline" onclick="switchView('timeline')" class="py-2 px-1 text-center rounded-lg transition text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5">
+        <i class="fa-solid fa-book-open"></i>
+        <span class="truncate">"What's Happened" Log</span>
+      </button>
+    </div>
+
+    <!-- SEARCH & FILTER TOOLBAR -->
+    <section class="bg-white rounded-xl p-2.5 sm:p-3 shadow-sm border border-slate-200/80 space-y-2">
+      <div class="relative w-full">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs sm:text-sm"></i>
+        <input id="searchInput" type="text" oninput="handleSearch(this.value)" placeholder="Search department or note..." class="w-full pl-8 sm:pl-9 pr-3 py-1.5 sm:py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition">
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <select id="statusFilter" onchange="handleStatusFilter(this.value)" class="w-full py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 truncate">
+          <option value="all">Status: All</option>
+          <option value="visited_today">Visited Today (✓)</option>
+          <option value="pending">Pending Today</option>
+        </select>
+        <select id="categoryFilter" onchange="handleCategoryFilter(this.value)" class="w-full py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 truncate">
+          <option value="all">Category: All</option>
+          <option value="Clinical">Clinical</option>
+          <option value="Surgical">Surgical</option>
+          <option value="Specialty">Specialty</option>
+          <option value="Critical Care">Critical Care</option>
+          <option value="Diagnostic">Diagnostic</option>
+          <option value="Paraclinical">Paraclinical</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- VIEW 1: DEPARTMENTS GRID -->
+    <section id="departmentsView" class="space-y-2.5">
+      <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 px-1">
+        <span id="showingCountLabel" class="font-medium">Showing 17 Departments</span>
+        <div class="flex items-center gap-2">
+          <!-- Reorder modal trigger -->
+          <button onclick="openReorderModal()" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md font-semibold text-[11px] transition flex items-center gap-1">
+            <i class="fa-solid fa-arrow-down-up-across-line text-[10px]"></i> Reorder
+          </button>
+          <!-- Archive modal trigger -->
+          <button onclick="openArchiveModal()" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md font-semibold text-[11px] transition flex items-center gap-1">
+            <i class="fa-solid fa-box-archive text-[10px]"></i>
+            <span id="toolbarArchiveLabel">Archive (0)</span>
+          </button>
+          <!-- Add extra department trigger -->
+          <button onclick="openAddDeptModal()" class="text-teal-700 font-bold hover:underline flex items-center gap-1">
+            <i class="fa-solid fa-plus text-[10px]"></i> Add Dept
+          </button>
+        </div>
+      </div>
+      <div id="deptGridContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <!-- Injected dynamically via JavaScript -->
+      </div>
+    </section>
+
+    <!-- VIEW 2: CALENDAR VIEW (Department & Visit Time Only) -->
+    <section id="calendarView" class="hidden space-y-3.5">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
+        <!-- Month Calendar Grid -->
+        <div class="lg:col-span-7 bg-white rounded-2xl p-3.5 sm:p-4 shadow-sm border border-slate-200/80">
+          <div class="flex items-center justify-between mb-2.5">
+            <div>
+              <h2 id="calendarMonthTitle" class="text-sm sm:text-base font-bold text-slate-900">September 2026</h2>
+              <p class="text-[11px] text-slate-400">Select date to view visit timing</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="prevCalendarMonth()" class="h-7 w-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition">
+                <i class="fa-solid fa-chevron-left text-[11px]"></i>
+              </button>
+              <button onclick="todayCalendarMonth()" class="h-7 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition">
+                Today
+              </button>
+              <button onclick="nextCalendarMonth()" class="h-7 w-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition">
+                <i class="fa-solid fa-chevron-right text-[11px]"></i>
+              </button>
+            </div>
+          </div>
+          <!-- Days of Week Header -->
+          <div class="grid grid-cols-7 text-center text-[11px] font-bold text-slate-400 py-1 border-b border-slate-100">
+            <div>SUN</div><div>MON</div><div>TUE</div><div>WED</div><div>THU</div><div>FRI</div><div>SAT</div>
+          </div>
+          <!-- Calendar Days Grid (Cell Overflow Protected) -->
+          <div id="calendarDaysGrid" class="grid grid-cols-7 gap-1 pt-1.5 text-xs">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+
+        <!-- Selected Date Overview Panel (Shows ONLY Dept Name & Visit Time) -->
+        <div class="lg:col-span-5 bg-white rounded-2xl p-3.5 sm:p-4 shadow-sm border border-slate-200/80 flex flex-col">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-2.5">
+            <div>
+              <span class="text-[10px] font-bold tracking-wider text-teal-600 uppercase">Date Overview</span>
+              <h3 id="selectedDateHeader" class="text-sm sm:text-base font-bold text-slate-900 leading-tight">Today</h3>
+            </div>
+            <button onclick="openLogModalForSelectedDate()" class="h-7 px-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition">
+              <i class="fa-solid fa-plus text-[10px]"></i>
+              <span>Add Log</span>
+            </button>
+          </div>
+          <!-- Chronologically Ordered Visits List (No Clutter) -->
+          <div id="calendarDayLogsContainer" class="flex-1 space-y-2 overflow-y-auto max-h-[440px] custom-scrollbar pr-1">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: "WHAT'S HAPPENED" TIMELINE VIEW (Contains Full Clinical Notes) -->
+    <section id="timelineView" class="hidden space-y-3">
+      <div class="bg-white rounded-2xl p-3.5 sm:p-4 shadow-sm border border-slate-200/80">
+        <!-- Timeline Header with Filter Toggle and Add Entry -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-100 mb-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm sm:text-base font-bold text-slate-900">Department Activity Logbook</h2>
+              <span id="timelineNotesCountBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                0 notes
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">Clinical notes, rounds, and patient case observations</p>
+          </div>
+
+          <!-- Notes Filter Segmented Toggle & Add Note button -->
+          <div class="flex items-center gap-2 self-start sm:self-auto">
+            <div class="bg-slate-100 p-0.5 rounded-lg flex items-center border border-slate-200 text-xs">
+              <button id="timelineFilterNotesOnly" onclick="setTimelineFilter('notes_only')" class="px-2.5 py-1 rounded-md transition text-xs font-bold bg-white text-teal-700 shadow-sm">
+                Notes Only
+              </button>
+              <button id="timelineFilterAll" onclick="setTimelineFilter('all')" class="px-2.5 py-1 rounded-md transition text-xs text-slate-600 hover:text-slate-900">
+                All Visits
+              </button>
+            </div>
+            <button onclick="openLogModal()" class="h-7 px-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition">
+              <i class="fa-solid fa-plus text-[10px]"></i>
+              <span>Add Entry</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Master Timeline Log Entries -->
+        <div id="timelineContainer" class="space-y-3">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL 1: LOG CLINICAL ACTIVITY (Creates or updates single entry) -->
+  <div id="logActivityModal" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-teal-500 text-slate-950 flex items-center justify-center text-xs font-bold">
+            <i class="fa-solid fa-pen"></i>
+          </div>
+          <h3 id="logModalTitle" class="text-sm font-bold">Log Clinical Activity</h3>
+        </div>
+        <button onclick="closeLogModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <form id="logActivityForm" onsubmit="handleSaveLog(event)" class="p-4 overflow-y-auto space-y-3 text-xs sm:text-sm">
+        <input type="hidden" id="editLogId" value="">
+
+        <!-- Department Selector -->
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Department <span class="text-rose-500">*</span></label>
+          <select id="modalDeptSelect" required class="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium text-slate-800">
+            <!-- Injected via JS -->
+          </select>
+        </div>
+
+        <!-- Date and Time Inputs -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Date <span class="text-rose-500">*</span></label>
+            <input type="date" id="modalLogDate" required onchange="handleModalDateChange(this.value)" class="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-800">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Visit Time</label>
+            <input type="time" id="modalLogTime" class="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-800">
+          </div>
+        </div>
+
+        <!-- What Happened Notes -->
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">What's Happened (Clinical Notes)</label>
+          <textarea id="modalLogDetails" rows="3" placeholder="Case discussion, patient observations, OPD procedures, or ward rounds (Optional)..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-800"></textarea>
+          <span class="text-[11px] text-slate-400 mt-0.5 block">Leaving this blank will simply record the visit timestamp.</span>
+        </div>
+
+        <!-- Visited Status Verification -->
+        <div class="bg-teal-50 border border-teal-200/80 rounded-xl p-3 flex items-start gap-2.5">
+          <input type="checkbox" id="modalMarkVisited" checked class="mt-0.5 w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-slate-300">
+          <label for="modalMarkVisited" class="text-xs text-teal-950 cursor-pointer select-none">
+            <strong id="modalVisitedLabelDate">Mark as Visited</strong>
+            <span class="block text-teal-700/80 text-[11px] mt-0.5">Registers or updates this visit without creating duplicate records.</span>
+          </label>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+          <button type="button" onclick="closeLogModal()" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 font-semibold text-slate-600 transition">Cancel</button>
+          <button type="submit" class="px-5 py-2 rounded-lg bg-teal-500 hover:bg-teal-400 font-bold text-slate-950 shadow-sm transition">Save Entry</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: ADD EXTRA DEPARTMENT -->
+  <div id="addDeptModal" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-teal-500 text-slate-950 flex items-center justify-center text-xs font-bold">
+            <i class="fa-solid fa-folder-plus"></i>
+          </div>
+          <h3 class="text-sm font-bold">Add Extra Department</h3>
+        </div>
+        <button onclick="closeAddDeptModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+      <form id="addDeptForm" onsubmit="handleCreateDepartment(event)" class="p-4 space-y-3 text-xs sm:text-sm">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Department Name <span class="text-rose-500">*</span></label>
+          <input type="text" id="newDeptName" required placeholder="e.g. Cardiology, Neurology..." class="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Category</label>
+            <select id="newDeptCategory" class="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500">
+              <option value="Clinical">Clinical</option>
+              <option value="Surgical">Surgical</option>
+              <option value="Specialty">Specialty</option>
+              <option value="Critical Care">Critical Care</option>
+              <option value="Diagnostic">Diagnostic</option>
+              <option value="Paraclinical">Paraclinical</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Icon</label>
+            <select id="newDeptIcon" class="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono text-xs">
+              <option value="fa-heart-pulse">fa-heart-pulse</option>
+              <option value="fa-brain">fa-brain</option>
+              <option value="fa-dna">fa-dna</option>
+              <option value="fa-hospital-user">fa-hospital-user</option>
+              <option value="fa-lungs">fa-lungs</option>
+              <option value="fa-bone">fa-bone</option>
+              <option value="fa-syringe">fa-syringe</option>
+              <option value="fa-user-doctor">fa-user-doctor</option>
+            </select>
+          </div>
+        </div>
+        <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+          <button type="button" onclick="closeAddDeptModal()" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 font-semibold text-slate-600 transition">Cancel</button>
+          <button type="submit" class="px-5 py-2 rounded-lg bg-teal-500 hover:bg-teal-400 font-bold text-slate-950 transition">Add Department</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: DEPARTMENT DETAILS & HISTORY -->
+  <div id="deptDetailsModal" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div id="detailDeptIcon" class="w-8 h-8 rounded-lg bg-teal-500 text-slate-950 flex items-center justify-center text-sm font-bold flex-shrink-0">
+            <i class="fa-solid fa-stethoscope"></i>
+          </div>
+          <div class="min-w-0">
+            <h3 id="detailDeptName" class="text-sm sm:text-base font-bold leading-tight truncate">Department</h3>
+            <span id="detailDeptCategory" class="text-[11px] text-teal-400 font-semibold">Category</span>
+          </div>
+        </div>
+        <button onclick="closeDeptDetailsModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+      <div class="p-4 overflow-y-auto space-y-3.5 text-xs sm:text-sm">
+        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+          <div>
+            <span class="text-slate-500 font-medium block text-xs">Today's Status</span>
+            <span id="detailDeptStatusBadge" class="font-bold text-slate-900">Pending</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button id="detailDeptToggleBtn" onclick="toggleCurrentDeptVisited()" class="px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs shadow-sm transition">
+              Toggle Visited
+            </button>
+            <button onclick="archiveCurrentDeptFromDetails()" title="Move to Archive" class="px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-amber-100 hover:text-amber-800 text-slate-700 font-semibold text-xs transition">
+              <i class="fa-solid fa-box-archive"></i>
+            </button>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="font-bold text-slate-800 flex items-center gap-1.5">
+              <i class="fa-solid fa-clipboard-list text-teal-600"></i>
+              Activity History
+            </h4>
+            <button id="detailAddEntryBtn" class="text-xs font-bold text-teal-700 hover:underline">+ Add Entry</button>
+          </div>
+          <div id="detailLogsList" class="space-y-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+            <!-- Injected via JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: REORDER DEPARTMENTS -->
+  <div id="reorderModal" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-teal-500 text-slate-950 flex items-center justify-center text-xs font-bold">
+            <i class="fa-solid fa-arrow-down-up-across-line"></i>
+          </div>
+          <h3 class="text-sm font-bold">Reorder Departments</h3>
+        </div>
+        <button onclick="closeReorderModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+      <div class="p-3 bg-slate-50 border-b border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+        <span>Use arrows to shift sequence. Changes save instantly.</span>
+        <button onclick="closeReorderModal(); openArchiveModal()" class="text-teal-700 font-bold hover:underline">
+          View Archive
+        </button>
+      </div>
+      <div id="reorderListContainer" class="p-3 overflow-y-auto max-h-[60vh] space-y-2 custom-scrollbar">
+        <!-- Injected via JS -->
+      </div>
+      <div class="p-3 border-t border-slate-100 flex justify-end">
+        <button onclick="closeReorderModal()" class="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: ARCHIVE MANAGER (Restore to exact same position) -->
+  <div id="archiveModal" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center text-xs font-bold">
+            <i class="fa-solid fa-box-archive"></i>
+          </div>
+          <h3 class="text-sm font-bold">Archived Departments</h3>
+        </div>
+        <button onclick="closeArchiveModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+      <div class="p-3 bg-amber-50/70 border-b border-amber-200/70 text-xs text-amber-900">
+        <i class="fa-solid fa-info-circle mr-1"></i> Restoring returns a department back to its <strong>exact previous spot</strong> with all past clinical logs intact.
+      </div>
+      <div id="archiveListContainer" class="p-4 overflow-y-auto max-h-[60vh] space-y-2.5 custom-scrollbar">
+        <!-- Injected via JS -->
+      </div>
+      <div class="p-3 border-t border-slate-100 flex justify-end">
+        <button onclick="closeArchiveModal()" class="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 6: CONFIRM ARCHIVE (Removal Confirmation) -->
+  <div id="archiveDeptConfirmModal" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-3.5">
+      <div class="w-11 h-11 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-lg">
+        <i class="fa-solid fa-box-archive"></i>
+      </div>
+      <div class="text-center">
+        <h4 class="font-bold text-slate-900 text-sm sm:text-base">Move to Archive?</h4>
+        <p id="archiveConfirmDeptDesc" class="text-xs text-slate-500 mt-1">
+          This removes the department from your active checklist. All past clinical notes and logs remain 100% safe and can be restored anytime.
+        </p>
+      </div>
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeArchiveConfirmModal()" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold text-slate-700">Cancel</button>
+        <button onclick="executeArchiveDepartment()" class="py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold">Archive</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 7: CONFIRM LOG DELETION -->
+  <div id="deleteConfirmModal" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-3.5">
+      <div class="w-11 h-11 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto text-lg">
+        <i class="fa-solid fa-trash-can"></i>
+      </div>
+      <div class="text-center">
+        <h4 class="font-bold text-slate-900 text-sm sm:text-base">Delete This Record?</h4>
+        <p class="text-xs text-slate-500 mt-1">This entry will be permanently removed from your calendar and logbook.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeDeleteConfirmModal()" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold text-slate-700">Cancel</button>
+        <button id="confirmDeleteBtn" class="py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 8: CONFIRM TRACKER RESET -->
+  <div id="resetConfirmModal" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-3.5">
+      <div class="w-11 h-11 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto text-lg">
+        <i class="fa-solid fa-rotate-left"></i>
+      </div>
+      <div class="text-center">
+        <h4 class="font-bold text-slate-900 text-sm sm:text-base">Reset All Rotations?</h4>
+        <p class="text-xs text-slate-500 mt-1">This will restore the 17 default departments and clear all logs from storage.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-2 pt-2">
+        <button onclick="closeResetConfirmModal()" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold text-slate-700">Cancel</button>
+        <button onclick="executeResetTracker()" class="py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 9: IMPORT CONFIRMATION & OPTIONS -->
+  <div id="importConfirmModal" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-3.5">
+      <div class="w-11 h-11 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center mx-auto text-lg">
+        <i class="fa-solid fa-file-import"></i>
+      </div>
+      <div class="text-center">
+        <h4 class="font-bold text-slate-900 text-sm sm:text-base">Import Rotation Data</h4>
+        <p id="importSummaryText" class="text-xs text-slate-500 mt-1">Select an import mode to continue.</p>
+      </div>
+      <div class="space-y-2 pt-1">
+        <button onclick="executeImportData('merge')" class="w-full py-2.5 px-3 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-code-merge"></i> Merge with Current Records
+        </button>
+        <button onclick="executeImportData('replace')" class="w-full py-2.5 px-3 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-arrow-rotate-right"></i> Replace All Existing Data
+        </button>
+        <button onclick="closeImportModal()" class="w-full py-1.5 text-xs text-slate-400 hover:text-slate-600 transition">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+  <script>
+    const DEFAULT_DEPARTMENTS = [
+      { id: 'gen_surg', name: 'General Surgery', category: 'Surgical', icon: 'fa-scissors', visitedDate: null },
+      { id: 'peds', name: 'Pediatrics', category: 'Clinical', icon: 'fa-baby', visitedDate: null },
+      { id: 'ent', name: 'ENT', category: 'Specialty', icon: 'fa-ear-listen', visitedDate: null },
+      { id: 'ortho', name: 'Orthopedics', category: 'Surgical', icon: 'fa-bone', visitedDate: null },
+      { id: 'derma', name: 'Dermatology', category: 'Clinical', icon: 'fa-hand-dots', visitedDate: null },
+      { id: 'opht', name: 'Ophthalmology', category: 'Specialty', icon: 'fa-eye', visitedDate: null },
+      { id: 'anaest', name: 'Anaesthesiology', category: 'Critical Care', icon: 'fa-lungs', visitedDate: null },
+      { id: 'obg', name: 'OBG', category: 'Surgical', icon: 'fa-person-pregnant', visitedDate: null },
+      { id: 'psych', name: 'Psychiatry', category: 'Clinical', icon: 'fa-brain', visitedDate: null },
+      { id: 'resp_med', name: 'Respiratory Medicine', category: 'Clinical', icon: 'fa-lungs-virus', visitedDate: null },
+      { id: 'gen_med', name: 'General Medicine', category: 'Clinical', icon: 'fa-user-doctor', visitedDate: null },
+      { id: 'em_med', name: 'Emergency Medicine', category: 'Critical Care', icon: 'fa-truck-medical', visitedDate: null },
+      { id: 'radiodiag', name: 'Radiodiagnosis', category: 'Diagnostic', icon: 'fa-x-ray', visitedDate: null },
+      { id: 'comm_med', name: 'Community Medicine', category: 'Paraclinical', icon: 'fa-people-roof', visitedDate: null },
+      { id: 'patho', name: 'Pathology', category: 'Diagnostic', icon: 'fa-microscope', visitedDate: null },
+      { id: 'forensic', name: 'Forensic Medicine', category: 'Paraclinical', icon: 'fa-magnifying-glass-chart', visitedDate: null },
+      { id: 'pharm', name: 'Pharmacology', category: 'Paraclinical', icon: 'fa-pills', visitedDate: null }
+    ];
+
+    let state = {
+      departments: [],
+      archivedDepartments: [],
+      logs: [],
+      currentView: 'departments',
+      timelineFilter: 'notes_only',
+      calendarYear: new Date().getFullYear(),
+      calendarMonth: new Date().getMonth(),
+      selectedCalendarDate: getIsoDateString(new Date()),
+      searchQuery: '',
+      statusFilter: 'all',
+      categoryFilter: 'all',
+      currentDetailDeptId: null,
+      pendingDeleteLogId: null,
+      pendingArchiveDeptId: null,
+      stagedImportData: null
+    };
+
+    function getIsoDateString(d) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function formatHumanDate(isoStr) {
+      if (!isoStr) return '';
+      const [y, m, d] = isoStr.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatTime12(dateObj) {
+      return dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+
+    function parseTimeToMinutes(timeStr) {
+      if (!timeStr) return 0;
+      const match = timeStr.match(/(\d+):(\d+)(?:\s*(AM|PM))?/i);
+      if (!match) return 0;
+      let hours = parseInt(match[1], 10);
+      const minutes = parseInt(match[2], 10);
+      const period = match[3] ? match[3].toUpperCase() : null;
+      if (period === 'PM' && hours < 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+      return hours * 60 + minutes;
+    }
+
+    function convert12to24(timeStr) {
+      if (!timeStr) return '';
+      const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+      if (!match) return timeStr;
+      let h = parseInt(match[1], 10);
+      const m = String(match[2]).padStart(2, '0');
+      const meridian = match[3] ? match[3].toUpperCase() : null;
+      if (meridian === 'PM' && h < 12) h += 12;
+      if (meridian === 'AM' && h === 12) h = 0;
+      return `${String(h).padStart(2, '0')}:${m}`;
+    }
+
+    function hasNoteContent(log) {
+      if (!log || !log.details) return false;
+      const t = log.details.trim();
+      if (!t) return false;
+      if (/^visited(\s+at\s+[\d:]+\s*(am|pm)?)?$/i.test(t)) return false;
+      return true;
+    }
+
+    function loadState() {
+      try {
+        const savedDepts = localStorage.getItem('med_departments');
+        const savedArchived = localStorage.getItem('med_archived_depts');
+        const savedLogs = localStorage.getItem('med_logs');
+
+        state.departments = savedDepts ? JSON.parse(savedDepts) : JSON.parse(JSON.stringify(DEFAULT_DEPARTMENTS));
+        state.archivedDepartments = savedArchived ? JSON.parse(savedArchived) : [];
+        state.logs = savedLogs ? JSON.parse(savedLogs) : [];
+
+        // Deduplicate any preexisting logs on the same date for the same department
+        const uniqueLogs = [];
+        const seenDateDept = new Set();
+        state.logs.forEach(l => {
+          const key = `${l.deptId}_${l.date}`;
+          if (!seenDateDept.has(key)) {
+            seenDateDept.add(key);
+            uniqueLogs.push(l);
+          } else {
+            // If duplicate contains actual note, preserve the note in the existing entry
+            if (hasNoteContent(l)) {
+              const existing = uniqueLogs.find(el => el.deptId === l.deptId && el.date === l.date);
+              if (existing && !hasNoteContent(existing)) {
+                existing.details = l.details;
+                existing.isAutoVisit = false;
+              }
+            }
+          }
+        });
+        state.logs = uniqueLogs;
+
+        // Auto-sync visited dates with logs
+        const todayStr = getIsoDateString(new Date());
+        let synced = false;
+        state.departments.forEach((dept, idx) => {
+          if (dept.visitedDate === todayStr) {
+            const hasLog = state.logs.some(l => l.deptId === dept.id && l.date === todayStr);
+            if (!hasLog) {
+              const now = new Date(Date.now() + idx * 500);
+              const timeStr = formatTime12(now);
+              state.logs.push({
+                id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                deptId: dept.id,
+                date: todayStr,
+                time: timeStr,
+                timestamp: now.getTime(),
+                details: 'Visited at ' + timeStr,
+                isAutoVisit: true
+              });
+              synced = true;
+            }
+          }
+        });
+
+        if (synced) saveState();
+      } catch (e) {
+        console.error('Storage parsing fallback:', e);
+        state.departments = JSON.parse(JSON.stringify(DEFAULT_DEPARTMENTS));
+        state.archivedDepartments = [];
+        state.logs = [];
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem('med_departments', JSON.stringify(state.departments));
+        localStorage.setItem('med_archived_depts', JSON.stringify(state.archivedDepartments));
+        localStorage.setItem('med_logs', JSON.stringify(state.logs));
+      } catch (e) {
+        console.error('Storage write error:', e);
+      }
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+      const toast = document.createElement('div');
+      const bg = type === 'danger' ? 'bg-rose-950 border-rose-700 text-rose-100' : 'bg-slate-900 border-teal-500/50 text-teal-300';
+      toast.className = `px-3.5 py-2 rounded-xl text-xs font-semibold shadow-xl border flex items-center gap-2 pointer-events-auto transition transform translate-y-2 opacity-0 duration-200 ${bg}`;
+      toast.innerHTML = `<i class="fa-solid ${type === 'danger' ? 'fa-triangle-exclamation' : 'fa-circle-check'}"></i> <span>${message}</span>`;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 200);
+      }, 3000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      updateCurrentDateHeader();
+      populateDeptDropdown();
+      updateKPIs();
+      renderDepartments();
+      renderCalendar();
+      renderTimeline();
+
+      const todayStr = getIsoDateString(new Date());
+      const logDateInput = document.getElementById('modalLogDate');
+      if (logDateInput) logDateInput.value = todayStr;
+      handleModalDateChange(todayStr);
+    });
+
+    function updateCurrentDateHeader() {
+      const today = new Date();
+      const dateStr = today.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      const el = document.getElementById('currentDateDisplay');
+      if (el) el.textContent = dateStr;
+    }
+
+    function toggleVisitedStatus(deptId, e) {
+      if (e) e.stopPropagation();
+      const dept = state.departments.find(d => d.id === deptId);
+      if (!dept) return;
+
+      const todayStr = getIsoDateString(new Date());
+      const isAlreadyVisitedToday = (dept.visitedDate === todayStr);
+
+      if (isAlreadyVisitedToday) {
+        // Unmark visited
+        dept.visitedDate = null;
+        // Remove only auto visit log without notes
+        state.logs = state.logs.filter(l => !(l.deptId === dept.id && l.date === todayStr && !hasNoteContent(l)));
+        showToast(`${dept.name} unmarked for today`, 'danger');
+      } else {
+        // Mark visited today with exact current time
+        dept.visitedDate = todayStr;
+        const now = new Date();
+        const timeStr = formatTime12(now);
+
+        // Check if log already exists for this dept on today
+        const existingLog = state.logs.find(l => l.deptId === dept.id && l.date === todayStr);
+        if (existingLog) {
+          existingLog.time = timeStr;
+          existingLog.timestamp = now.getTime();
+        } else {
+          state.logs.push({
+            id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            deptId: dept.id,
+            date: todayStr,
+            time: timeStr,
+            timestamp: now.getTime(),
+            details: 'Visited at ' + timeStr,
+            isAutoVisit: true
+          });
+        }
+        showToast(`${dept.name} marked Visited at ${timeStr} ✓`);
+      }
+
+      saveState();
+      updateKPIs();
+      renderDepartments();
+
+      if (state.currentView === 'calendar') renderCalendar();
+      if (state.currentView === 'timeline') renderTimeline();
+    }
+
+    function renderDepartments() {
+      const container = document.getElementById('deptGridContainer');
+      if (!container) return;
+
+      const todayStr = getIsoDateString(new Date());
+      const formattedToday = formatHumanDate(todayStr);
+
+      let filtered = state.departments.filter(dept => {
+        if (state.searchQuery) {
+          const q = state.searchQuery.toLowerCase();
+          const matchName = dept.name.toLowerCase().includes(q);
+          const matchCat = dept.category.toLowerCase().includes(q);
+          const matchLogs = state.logs.some(l => l.deptId === dept.id && l.details.toLowerCase().includes(q));
+          if (!matchName && !matchCat && !matchLogs) return false;
+        }
+
+        const isVisitedToday = (dept.visitedDate === todayStr);
+        if (state.statusFilter === 'visited_today' && !isVisitedToday) return false;
+        if (state.statusFilter === 'pending' && isVisitedToday) return false;
+        if (state.categoryFilter !== 'all' && dept.category !== state.categoryFilter) return false;
+
+        return true;
+      });
+
+      const showingLabel = document.getElementById('showingCountLabel');
+      if (showingLabel) {
+        showingLabel.textContent = `Showing ${filtered.length} of ${state.departments.length} Departments`;
+      }
+
+      const archiveBtnLabel = document.getElementById('toolbarArchiveLabel');
+      if (archiveBtnLabel) {
+        archiveBtnLabel.textContent = `Archive (${state.archivedDepartments.length})`;
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full py-10 text-center bg-white rounded-2xl border border-dashed border-slate-200 p-6">
+            <div class="w-11 h-11 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2 text-base">
+              <i class="fa-solid fa-filter-circle-xmark"></i>
+            </div>
+            <h4 class="font-bold text-slate-800 text-sm">No matching departments</h4>
+            <p class="text-xs text-slate-400 mt-0.5">Try clearing filters or search terms.</p>
+            <button onclick="clearFilters()" class="mt-3 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition">Clear Filters</button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(dept => {
+        const globalIndex = state.departments.findIndex(d => d.id === dept.id);
+        const isVisitedToday = (dept.visitedDate === todayStr);
+
+        const allDeptLogs = state.logs.filter(l => l.deptId === dept.id);
+        const todayLog = state.logs.find(l => l.deptId === dept.id && l.date === todayStr);
+        const hasTodayNote = todayLog && hasNoteContent(todayLog);
+
+        const isFirst = (globalIndex === 0);
+        const isLast = (globalIndex === state.departments.length - 1);
+
+        const statusBadge = isVisitedToday
+          ? `<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"><i class="fa-solid fa-check text-[9px]"></i> Visited Today</span>`
+          : `<span class="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"><i class="fa-regular fa-clock text-[9px]"></i> No entry today</span>`;
+
+        const checkBtn = isVisitedToday
+          ? `<button onclick="toggleVisitedStatus('${dept.id}', event)" title="Unmark Visited" class="w-8 h-8 rounded-full bg-teal-500 text-slate-950 flex items-center justify-center shadow-sm hover:bg-teal-400 transition active:scale-95"><i class="fa-solid fa-check text-sm font-extrabold"></i></button>`
+          : `<button onclick="toggleVisitedStatus('${dept.id}', event)" title="Mark Visited Today" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-teal-100 text-slate-400 hover:text-teal-600 flex items-center justify-center border border-slate-300 hover:border-teal-400 transition active:scale-95"><div class="w-3.5 h-3.5 rounded-full bg-slate-400/80"></div></button>`;
+
+        let whatsHappenedPreview = '';
+        if (todayLog && hasTodayNote) {
+          whatsHappenedPreview = `
+            <div class="flex items-center justify-between text-[10px] font-semibold text-slate-600 mb-1">
+              <span class="flex items-center gap-1 text-teal-700 font-bold"><i class="fa-solid fa-clipboard-check"></i> Clinical Note:</span>
+              <span class="px-1.5 py-0.2 rounded bg-teal-100/70 text-teal-800 font-mono text-[9px] font-bold">${todayLog.time || 'Today'}</span>
+            </div>
+            <p class="text-xs text-slate-800 font-medium line-clamp-2">${todayLog.details}</p>
+          `;
+        } else if (todayLog) {
+          whatsHappenedPreview = `
+            <div class="flex items-center justify-between text-[10px] font-semibold text-slate-600 mb-1">
+              <span class="flex items-center gap-1 text-emerald-700 font-bold"><i class="fa-solid fa-circle-check"></i> Checked-in:</span>
+              <span class="px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 font-mono text-[9px]">${todayLog.time || 'Today'}</span>
+            </div>
+            <p class="text-xs text-slate-500 italic">Department visited at ${todayLog.time || 'today'}. Tap + Note to record cases.</p>
+          `;
+        } else {
+          whatsHappenedPreview = `
+            <div class="flex items-center justify-between text-[10px] font-semibold text-slate-500 mb-1">
+              <span class="flex items-center gap-1"><i class="fa-regular fa-clipboard text-slate-400"></i> What's Happened:</span>
+              <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-400 text-[9px]">No note today</span>
+            </div>
+            <p class="text-xs text-slate-400 italic">No activity logged for today (${formattedToday}).</p>
+          `;
+        }
+
+        return `
+          <div onclick="openDeptDetailsModal('${dept.id}')" class="bg-white rounded-2xl p-3.5 shadow-sm border ${isVisitedToday ? 'border-teal-400 ring-1 ring-teal-400/30' : 'border-slate-200/90'} hover:shadow-md transition cursor-pointer flex flex-col justify-between space-y-2.5">
+            <div>
+              <!-- Header Row -->
+              <div class="flex items-start justify-between gap-2 mb-1.5">
+                <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div class="w-9 h-9 rounded-xl ${isVisitedToday ? 'bg-teal-500 text-slate-950 font-bold' : 'bg-slate-100 text-slate-600'} flex items-center justify-center text-sm flex-shrink-0 transition">
+                    <i class="fa-solid ${dept.icon || 'fa-stethoscope'}"></i>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5">
+                      <h3 class="text-xs sm:text-sm font-bold text-slate-900 truncate">${dept.name}</h3>
+                      <span class="text-[9px] font-mono font-semibold px-1 rounded bg-slate-100 text-slate-400">#${globalIndex + 1}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span class="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">${dept.category}</span>
+                      ${statusBadge}
+                    </div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  ${checkBtn}
+                </div>
+              </div>
+
+              <!-- What's Happened Content Preview -->
+              <div class="bg-slate-50 rounded-xl p-2.5 border border-slate-100 mt-2">
+                ${whatsHappenedPreview}
+              </div>
+            </div>
+
+            <!-- Footer: Quick Reorder Arrows, Archive, and Add/Edit Note Shortcut -->
+            <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <div class="flex items-center gap-1">
+                <!-- Move Up Arrow -->
+                <button onclick="event.stopPropagation(); moveDepartment('${dept.id}', 'up')" ${isFirst ? 'disabled' : ''} title="Move Up" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-[10px] transition">
+                  <i class="fa-solid fa-arrow-up"></i>
+                </button>
+                <!-- Move Down Arrow -->
+                <button onclick="event.stopPropagation(); moveDepartment('${dept.id}', 'down')" ${isLast ? 'disabled' : ''} title="Move Down" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-[10px] transition">
+                  <i class="fa-solid fa-arrow-down"></i>
+                </button>
+                <!-- Archive button -->
+                <button onclick="event.stopPropagation(); promptArchiveDepartment('${dept.id}')" title="Archive Department" class="w-6 h-6 rounded bg-slate-100 hover:bg-amber-100 hover:text-amber-800 text-slate-400 flex items-center justify-center text-[10px] transition ml-0.5">
+                  <i class="fa-solid fa-box-archive"></i>
+                </button>
+              </div>
+
+              <!-- Shortcut to Add or Edit Clinical Note without Duplicates -->
+              <button onclick="event.stopPropagation(); openLogModalForDept('${dept.id}')" class="px-2.5 py-1 rounded-lg ${hasTodayNote ? 'bg-teal-50 text-teal-800 border border-teal-200/80 font-bold' : 'bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 font-semibold'} transition flex items-center gap-1 text-[11px]">
+                <i class="fa-solid ${hasTodayNote ? 'fa-pen-to-square' : 'fa-plus'} text-[9px]"></i>
+                <span>${hasTodayNote ? 'Edit Note' : (isVisitedToday ? '+ Add Note' : 'Log Today')}</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function moveDepartment(deptId, direction) {
+      const idx = state.departments.findIndex(d => d.id === deptId);
+      if (idx === -1) return;
+
+      if (direction === 'up' && idx > 0) {
+        const item = state.departments.splice(idx, 1)[0];
+        state.departments.splice(idx - 1, 0, item);
+      } else if (direction === 'down' && idx < state.departments.length - 1) {
+        const item = state.departments.splice(idx, 1)[0];
+        state.departments.splice(idx + 1, 0, item);
+      } else if (direction === 'top' && idx > 0) {
+        const item = state.departments.splice(idx, 1)[0];
+        state.departments.unshift(item);
+      } else if (direction === 'bottom' && idx < state.departments.length - 1) {
+        const item = state.departments.splice(idx, 1)[0];
+        state.departments.push(item);
+      }
+
+      saveState();
+      renderDepartments();
+      populateDeptDropdown();
+      if (!document.getElementById('reorderModal').classList.contains('hidden')) {
+        renderReorderModalList();
+      }
+    }
+
+    function promptArchiveDepartment(deptId) {
+      const dept = state.departments.find(d => d.id === deptId);
+      if (!dept) return;
+
+      state.pendingArchiveDeptId = deptId;
+      const modal = document.getElementById('archiveDeptConfirmModal');
+      const descEl = document.getElementById('archiveConfirmDeptDesc');
+      if (descEl) {
+        descEl.innerHTML = `Move <strong>${dept.name}</strong> to archive? It can be restored at anytime back to this exact same position with all logs intact.`;
+      }
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeArchiveConfirmModal() {
+      const modal = document.getElementById('archiveDeptConfirmModal');
+      if (modal) modal.classList.add('hidden');
+      state.pendingArchiveDeptId = null;
+    }
+
+    function executeArchiveDepartment() {
+      if (!state.pendingArchiveDeptId) return;
+      const deptIndex = state.departments.findIndex(d => d.id === state.pendingArchiveDeptId);
+      if (deptIndex === -1) return;
+
+      const [dept] = state.departments.splice(deptIndex, 1);
+      dept.originalIndex = deptIndex; // Preserve exact position
+
+      state.archivedDepartments = state.archivedDepartments || [];
+      state.archivedDepartments.push(dept);
+
+      saveState();
+      closeArchiveConfirmModal();
+      if (state.currentDetailDeptId === dept.id) closeDeptDetailsModal();
+
+      updateKPIs();
+      renderDepartments();
+      populateDeptDropdown();
+
+      showToast(`${dept.name} moved to Archive (position #${deptIndex + 1})`);
+    }
+
+    function archiveCurrentDeptFromDetails() {
+      if (!state.currentDetailDeptId) return;
+      promptArchiveDepartment(state.currentDetailDeptId);
+    }
+
+    function restoreDepartment(deptId) {
+      const archIndex = state.archivedDepartments.findIndex(d => d.id === deptId);
+      if (archIndex === -1) return;
+
+      const [dept] = state.archivedDepartments.splice(archIndex, 1);
+
+      // Restore to exact saved original position or bounded index
+      let targetIndex = (typeof dept.originalIndex === 'number') ? dept.originalIndex : state.departments.length;
+      if (targetIndex > state.departments.length) targetIndex = state.departments.length;
+      if (targetIndex < 0) targetIndex = 0;
+
+      state.departments.splice(targetIndex, 0, dept);
+
+      saveState();
+      renderDepartments();
+      renderArchiveModalList();
+      populateDeptDropdown();
+      updateKPIs();
+
+      showToast(`Restored ${dept.name} to position #${targetIndex + 1}!`);
+
+      if (state.archivedDepartments.length === 0) {
+        closeArchiveModal();
+      }
+    }
+
+    function permanentlyDeleteArchived(deptId) {
+      const archIndex = state.archivedDepartments.findIndex(d => d.id === deptId);
+      if (archIndex === -1) return;
+      const [dept] = state.archivedDepartments.splice(archIndex, 1);
+      // Remove logs for permanently deleted department
+      state.logs = state.logs.filter(l => l.deptId !== deptId);
+      saveState();
+      renderArchiveModalList();
+      updateKPIs();
+      showToast(`${dept.name} permanently removed`, 'danger');
+    }
+
+    function openReorderModal() {
+      const modal = document.getElementById('reorderModal');
+      if (!modal) return;
+      renderReorderModalList();
+      modal.classList.remove('hidden');
+    }
+
+    function closeReorderModal() {
+      const modal = document.getElementById('reorderModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function renderReorderModalList() {
+      const container = document.getElementById('reorderListContainer');
+      if (!container) return;
+
+      container.innerHTML = state.departments.map((d, i) => {
+        const isFirst = (i === 0);
+        const isLast = (i === state.departments.length - 1);
+        return `
+          <div class="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-6 text-center font-mono font-bold text-xs text-slate-400">#${i + 1}</span>
+              <div class="w-7 h-7 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center text-xs flex-shrink-0">
+                <i class="fa-solid ${d.icon || 'fa-stethoscope'}"></i>
+              </div>
+              <div class="min-w-0">
+                <h4 class="text-xs font-bold text-slate-900 truncate">${d.name}</h4>
+                <span class="text-[10px] text-slate-500">${d.category}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <button onclick="moveDepartment('${d.id}', 'top')" ${isFirst ? 'disabled' : ''} title="Move to Top" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 disabled:opacity-30 flex items-center justify-center text-[9px]">
+                <i class="fa-solid fa-angles-up"></i>
+              </button>
+              <button onclick="moveDepartment('${d.id}', 'up')" ${isFirst ? 'disabled' : ''} title="Move Up" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 disabled:opacity-30 flex items-center justify-center text-[9px]">
+                <i class="fa-solid fa-arrow-up"></i>
+              </button>
+              <button onclick="moveDepartment('${d.id}', 'down')" ${isLast ? 'disabled' : ''} title="Move Down" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 disabled:opacity-30 flex items-center justify-center text-[9px]">
+                <i class="fa-solid fa-arrow-down"></i>
+              </button>
+              <button onclick="moveDepartment('${d.id}', 'bottom')" ${isLast ? 'disabled' : ''} title="Move to Bottom" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 disabled:opacity-30 flex items-center justify-center text-[9px]">
+                <i class="fa-solid fa-angles-down"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openArchiveModal() {
+      const modal = document.getElementById('archiveModal');
+      if (!modal) return;
+      renderArchiveModalList();
+      modal.classList.remove('hidden');
+    }
+
+    function closeArchiveModal() {
+      const modal = document.getElementById('archiveModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function renderArchiveModalList() {
+      const container = document.getElementById('archiveListContainer');
+      if (!container) return;
+
+      if (!state.archivedDepartments || state.archivedDepartments.length === 0) {
+        container.innerHTML = `
+          <div class="py-8 text-center text-slate-400">
+            <i class="fa-regular fa-folder-open text-2xl mb-1.5"></i>
+            <p class="text-xs font-semibold">Archive is empty</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Removed departments will appear here for easy restore.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = state.archivedDepartments.map(d => {
+        const logCount = state.logs.filter(l => l.deptId === d.id).length;
+        const posInfo = (typeof d.originalIndex === 'number') ? `Prev position #${d.originalIndex + 1}` : 'Rotations list';
+
+        return `
+          <div class="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-2.5">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center text-xs flex-shrink-0">
+                <i class="fa-solid ${d.icon || 'fa-box-archive'}"></i>
+              </div>
+              <div class="min-w-0">
+                <h4 class="text-xs font-bold text-slate-900 truncate">${d.name}</h4>
+                <div class="flex items-center gap-1.5 text-[10px] text-slate-500">
+                  <span>${posInfo}</span>
+                  <span>•</span>
+                  <span class="font-medium text-teal-700">${logCount} logs saved</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              <button onclick="restoreDepartment('${d.id}')" class="px-2.5 py-1 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-lg text-xs transition flex items-center gap-1">
+                <i class="fa-solid fa-arrow-rotate-left text-[10px]"></i> Restore
+              </button>
+              <button onclick="permanentlyDeleteArchived('${d.id}')" title="Permanently Delete" class="w-7 h-7 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center text-xs transition">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderCalendar() {
+      const daysContainer = document.getElementById('calendarDaysGrid');
+      const monthTitle = document.getElementById('calendarMonthTitle');
+      if (!daysContainer || !monthTitle) return;
+
+      const year = state.calendarYear;
+      const month = state.calendarMonth;
+
+      const monthDate = new Date(year, month, 1);
+      monthTitle.textContent = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+      const firstDayIdx = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const prevMonthDays = new Date(year, month, 0).getDate();
+      const todayStr = getIsoDateString(new Date());
+
+      let html = '';
+
+      for (let i = firstDayIdx - 1; i >= 0; i--) {
+        const dNum = prevMonthDays - i;
+        html += `<div class="calendar-cell p-1 rounded-xl border border-transparent text-slate-300 bg-slate-50/40 select-none"><span class="font-medium">${dNum}</span></div>`;
+      }
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const cellDate = new Date(year, month, d);
+        const isoDate = getIsoDateString(cellDate);
+        const isToday = (isoDate === todayStr);
+        const isSelected = (isoDate === state.selectedCalendarDate);
+        const logsOnDate = state.logs.filter(l => l.date === isoDate);
+        const logCount = logsOnDate.length;
+
+        html += `
+          <div onclick="selectCalendarDate('${isoDate}')" class="calendar-cell p-1 sm:p-1.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+            isSelected
+              ? 'border-teal-500 bg-teal-50/70 shadow-sm'
+              : isToday
+                ? 'border-emerald-300 bg-emerald-50/30'
+                : 'border-slate-100 hover:border-slate-300 bg-white'
+          }">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold ${isToday ? 'w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]' : 'text-slate-700'}">${d}</span>
+              ${isToday ? '<span class="hidden sm:inline text-[8px] font-extrabold px-1 rounded bg-emerald-100 text-emerald-800">TODAY</span>' : ''}
+            </div>
+            <div class="mt-0.5 sm:mt-1">
+              ${logCount > 0 ? `
+                <div class="inline-flex items-center justify-center sm:justify-start gap-1 px-1 py-0.5 rounded bg-teal-100/90 text-teal-800 font-bold text-[9px] sm:text-[10px] w-full border border-teal-200 truncate">
+                  <span class="w-1.5 h-1.5 rounded-full bg-teal-600 flex-shrink-0"></span>
+                  <span class="truncate">${logCount} <span class="hidden sm:inline">visit${logCount > 1 ? 's' : ''}</span></span>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      const totalRendered = firstDayIdx + daysInMonth;
+      const trailing = (totalRendered <= 35) ? (35 - totalRendered) : (42 - totalRendered);
+      for (let n = 1; n <= trailing; n++) {
+        html += `<div class="calendar-cell p-1 rounded-xl border border-transparent text-slate-300 bg-slate-50/40 select-none"><span class="font-medium">${n}</span></div>`;
+      }
+
+      daysContainer.innerHTML = html;
+      renderCalendarSelectedDayOverview();
+    }
+
+    function selectCalendarDate(isoDate) {
+      state.selectedCalendarDate = isoDate;
+      renderCalendar();
+    }
+
+    function prevCalendarMonth() {
+      if (state.calendarMonth === 0) {
+        state.calendarMonth = 11;
+        state.calendarYear--;
+      } else {
+        state.calendarMonth--;
+      }
+      renderCalendar();
+    }
+
+    function nextCalendarMonth() {
+      if (state.calendarMonth === 11) {
+        state.calendarMonth = 0;
+        state.calendarYear++;
+      } else {
+        state.calendarMonth++;
+      }
+      renderCalendar();
+    }
+
+    function todayCalendarMonth() {
+      const now = new Date();
+      state.calendarYear = now.getFullYear();
+      state.calendarMonth = now.getMonth();
+      state.selectedCalendarDate = getIsoDateString(now);
+      renderCalendar();
+    }
+
+    function renderCalendarSelectedDayOverview() {
+      const headerEl = document.getElementById('selectedDateHeader');
+      const container = document.getElementById('calendarDayLogsContainer');
+      if (!headerEl || !container) return;
+
+      const selectedIso = state.selectedCalendarDate || getIsoDateString(new Date());
+      const isToday = (selectedIso === getIsoDateString(new Date()));
+      const humanDate = formatHumanDate(selectedIso);
+
+      headerEl.innerHTML = `${isToday ? 'Today' : humanDate} <span class="text-xs font-normal text-slate-500">(${humanDate})</span>`;
+
+      // Filter all logs on this date
+      const dayLogs = state.logs.filter(l => l.date === selectedIso);
+
+      // Sort strictly in Chronological Timing Order (Earliest to Latest)
+      dayLogs.sort((a, b) => {
+        if (a.timestamp && b.timestamp) return a.timestamp - b.timestamp;
+        const minA = parseTimeToMinutes(a.time);
+        const minB = parseTimeToMinutes(b.time);
+        return minA - minB;
+      });
+
+      if (dayLogs.length === 0) {
+        container.innerHTML = `
+          <div class="py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 p-4">
+            <div class="w-9 h-9 rounded-full bg-white text-slate-400 flex items-center justify-center mx-auto mb-1.5 text-xs shadow-sm">
+              <i class="fa-regular fa-calendar-xmark"></i>
+            </div>
+            <h4 class="font-bold text-slate-700 text-xs">No visits on this date</h4>
+            <p class="text-[11px] text-slate-400 mt-0.5">Click + Add Log to record department visits.</p>
+            <button onclick="openLogModalForSelectedDate()" class="mt-2.5 px-3 py-1 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm transition">
+              + Log for This Date
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      // Render ONLY department name and visit time (Minimal, uncluttered view)
+      container.innerHTML = dayLogs.map((log) => {
+        const dept = state.departments.find(d => d.id === log.deptId) 
+          || (state.archivedDepartments || []).find(d => d.id === log.deptId)
+          || { name: 'Unknown Dept', icon: 'fa-hospital', category: 'Medical' };
+
+        return `
+          <div class="p-2.5 bg-white rounded-xl border border-slate-200/90 shadow-sm hover:border-teal-300 transition flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center flex-shrink-0 text-xs">
+                <i class="fa-solid ${dept.icon || 'fa-stethoscope'}"></i>
+              </div>
+              <div class="min-w-0">
+                <h4 class="text-xs font-bold text-slate-900 truncate">${dept.name}</h4>
+                <span class="text-[10px] text-slate-500 font-medium">${dept.category}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              <span class="px-2 py-0.5 bg-teal-50 text-teal-800 rounded-md font-mono text-[11px] font-bold border border-teal-200">
+                <i class="fa-regular fa-clock mr-1 text-[10px]"></i>${log.time || 'Logged'}
+              </span>
+              <button onclick="editLogEntry('${log.id}')" title="Edit Note" class="w-6 h-6 rounded text-slate-400 hover:text-teal-600 flex items-center justify-center text-xs">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button onclick="deleteLogEntryPrompt('${log.id}')" title="Delete" class="w-6 h-6 rounded text-slate-400 hover:text-rose-600 flex items-center justify-center text-xs">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function setTimelineFilter(mode) {
+      state.timelineFilter = mode;
+      renderTimeline();
+    }
+
+    function renderTimeline() {
+      const container = document.getElementById('timelineContainer');
+      if (!container) return;
+
+      const notesOnly = (state.timelineFilter === 'notes_only');
+
+      // Update filter buttons styling
+      const btnNotes = document.getElementById('timelineFilterNotesOnly');
+      const btnAll = document.getElementById('timelineFilterAll');
+      if (btnNotes && btnAll) {
+        if (notesOnly) {
+          btnNotes.className = 'px-2.5 py-1 rounded-md transition text-xs font-bold bg-white text-teal-700 shadow-sm';
+          btnAll.className = 'px-2.5 py-1 rounded-md transition text-xs text-slate-600 hover:text-slate-900';
+        } else {
+          btnAll.className = 'px-2.5 py-1 rounded-md transition text-xs font-bold bg-white text-teal-700 shadow-sm';
+          btnNotes.className = 'px-2.5 py-1 rounded-md transition text-xs text-slate-600 hover:text-slate-900';
+        }
+      }
+
+      // Filter entries with clinical notes
+      const notesLogs = state.logs.filter(hasNoteContent);
+      const countBadge = document.getElementById('timelineNotesCountBadge');
+      if (countBadge) {
+        countBadge.textContent = `${notesLogs.length} note${notesLogs.length === 1 ? '' : 's'}`;
+      }
+
+      const displayedLogs = notesOnly ? notesLogs : state.logs;
+
+      if (displayedLogs.length === 0) {
+        container.innerHTML = `
+          <div class="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6">
+            <div class="w-11 h-11 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center mx-auto mb-2 text-base">
+              <i class="fa-solid fa-book-open"></i>
+            </div>
+            <h4 class="font-bold text-slate-800 text-sm">No clinical notes recorded</h4>
+            <p class="text-xs text-slate-500 mt-0.5 max-w-sm mx-auto">
+              ${notesOnly ? 'Routine department check-ins stay in the Calendar view. Click "+ Add Entry" or "+ Add Note" to record patient cases and clinical observations.' : 'Click Visited on any department to begin.'}
+            </p>
+            <div class="mt-3 flex items-center justify-center gap-2">
+              <button onclick="openLogModal()" class="px-3.5 py-1.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs rounded-lg shadow-sm transition">
+                + Add Clinical Note
+              </button>
+              ${notesOnly && state.logs.length > 0 ? `<button onclick="setTimelineFilter('all')" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-lg transition">View All Visits (${state.logs.length})</button>` : ''}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // Sort descending (most recent first)
+      const sorted = [...displayedLogs].sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        if (a.timestamp && b.timestamp) return b.timestamp - a.timestamp;
+        return parseTimeToMinutes(b.time) - parseTimeToMinutes(a.time);
+      });
+
+      const todayStr = getIsoDateString(new Date());
+
+      // Render with clean responsive wrapping to prevent text squishing on mobile
+      container.innerHTML = sorted.map(log => {
+        const dept = state.departments.find(d => d.id === log.deptId) 
+          || (state.archivedDepartments || []).find(d => d.id === log.deptId)
+          || { name: 'Unknown Dept', icon: 'fa-hospital', category: 'Medical' };
+        const isToday = (log.date === todayStr);
+
+        return `
+          <div class="p-3 sm:p-4 bg-white rounded-2xl border border-slate-200/90 shadow-sm space-y-2.5">
+            <!-- Header Row: Icon, Dept Name, Category, Date/Time Badge, Actions -->
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center flex-shrink-0 text-sm border border-teal-100/80 font-bold">
+                  <i class="fa-solid ${dept.icon || 'fa-stethoscope'}"></i>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h4 class="text-xs sm:text-sm font-bold text-slate-900 leading-snug break-words">${dept.name}</h4>
+                  <span class="text-[10px] text-slate-500 font-medium">${dept.category}</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between sm:justify-end gap-2 pl-11 sm:pl-0">
+                <span class="text-[10px] sm:text-xs font-semibold px-2.5 py-0.5 rounded-full ${isToday ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700'} whitespace-nowrap">
+                  <i class="fa-regular fa-clock mr-1 text-[9px] sm:text-[10px]"></i>${formatHumanDate(log.date)}${log.time ? ` • ${log.time}` : ''}
+                </span>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  <button onclick="editLogEntry('${log.id}')" title="Edit Note" class="w-7 h-7 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition flex items-center justify-center text-xs">
+                    <i class="fa-solid fa-pen text-[11px]"></i>
+                  </button>
+                  <button onclick="deleteLogEntryPrompt('${log.id}')" title="Delete" class="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition flex items-center justify-center text-xs">
+                    <i class="fa-regular fa-trash-can text-[11px]"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- What's Happened Content Box -->
+            <div class="bg-slate-50/90 rounded-xl p-2.5 border border-slate-100">
+              <div class="flex items-center justify-between text-[11px] font-bold text-teal-800 uppercase tracking-wider mb-1">
+                <span class="flex items-center gap-1"><i class="fa-solid fa-clipboard-check text-teal-600"></i> What's Happened:</span>
+                <span class="text-[10px] font-mono text-slate-400 font-normal lowercase">${formatHumanDate(log.date)}</span>
+              </div>
+              <p class="text-xs text-slate-800 font-medium leading-relaxed whitespace-pre-line">${log.details || 'Department visited and verified.'}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateKPIs() {
+      const todayStr = getIsoDateString(new Date());
+      const totalDepts = state.departments.length;
+      const visitedCount = state.departments.filter(d => d.visitedDate === todayStr).length;
+      const pct = totalDepts > 0 ? Math.round((visitedCount / totalDepts) * 100) : 0;
+
+      const visitedCountEl = document.getElementById('kpiVisitedCount');
+      if (visitedCountEl) visitedCountEl.textContent = visitedCount;
+
+      const totalDeptsLabel = document.getElementById('kpiTotalDeptsCount');
+      if (totalDeptsLabel) totalDeptsLabel.textContent = `/ ${totalDepts} Today`;
+
+      const pctBadge = document.getElementById('kpiPercentToday');
+      if (pctBadge) pctBadge.textContent = `${pct}% Today`;
+
+      const progressBar = document.getElementById('kpiProgressBar');
+      if (progressBar) progressBar.style.width = `${pct}%`;
+
+      const totalLogsEl = document.getElementById('kpiTotalLogs');
+      if (totalLogsEl) totalLogsEl.textContent = state.logs.length;
+
+      const deptCountPill = document.getElementById('deptCountPill');
+      if (deptCountPill) deptCountPill.textContent = `${totalDepts} Depts`;
+
+      const tabDeptsCount = document.getElementById('tabDeptsCount');
+      if (tabDeptsCount) tabDeptsCount.textContent = `${totalDepts}`;
+    }
+
+    function switchView(viewName) {
+      state.currentView = viewName;
+
+      const vDepts = document.getElementById('departmentsView');
+      const vCal = document.getElementById('calendarView');
+      const vTimeline = document.getElementById('timelineView');
+
+      const tDepts = document.getElementById('tabDepts');
+      const tCal = document.getElementById('tabCalendar');
+      const tTime = document.getElementById('tabTimeline');
+
+      vDepts.classList.add('hidden');
+      vCal.classList.add('hidden');
+      vTimeline.classList.add('hidden');
+
+      const defaultTab = 'py-2 px-1 text-center rounded-lg transition text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5';
+      const activeTab = 'py-2 px-1 text-center rounded-lg transition bg-white text-teal-700 shadow-sm font-bold flex items-center justify-center gap-1.5';
+
+      [tDepts, tCal, tTime].forEach(t => t.className = defaultTab);
+
+      if (viewName === 'departments') {
+        vDepts.classList.remove('hidden');
+        tDepts.className = activeTab;
+        renderDepartments();
+      } else if (viewName === 'calendar') {
+        vCal.classList.remove('hidden');
+        tCal.className = activeTab;
+        renderCalendar();
+      } else if (viewName === 'timeline') {
+        vTimeline.classList.remove('hidden');
+        tTime.className = activeTab;
+        renderTimeline();
+      }
+    }
+
+    function handleSearch(val) {
+      state.searchQuery = val.trim();
+      renderDepartments();
+    }
+
+    function handleStatusFilter(val) {
+      state.statusFilter = val;
+      renderDepartments();
+    }
+
+    function handleCategoryFilter(val) {
+      state.categoryFilter = val;
+      renderDepartments();
+    }
+
+    function filterByToday() {
+      switchView('departments');
+      const statusSelect = document.getElementById('statusFilter');
+      if (statusSelect) statusSelect.value = 'visited_today';
+      state.statusFilter = 'visited_today';
+      renderDepartments();
+      showToast('Filtered departments visited today');
+    }
+
+    function clearFilters() {
+      state.searchQuery = '';
+      state.statusFilter = 'all';
+      state.categoryFilter = 'all';
+
+      const sInput = document.getElementById('searchInput');
+      if (sInput) sInput.value = '';
+      const stFilter = document.getElementById('statusFilter');
+      if (stFilter) stFilter.value = 'all';
+      const cFilter = document.getElementById('categoryFilter');
+      if (cFilter) cFilter.value = 'all';
+
+      renderDepartments();
+      showToast('Filters reset');
+    }
+
+    function populateDeptDropdown() {
+      const select = document.getElementById('modalDeptSelect');
+      if (!select) return;
+      select.innerHTML = state.departments.map(d => `<option value="${d.id}">${d.name} (${d.category})</option>`).join('');
+    }
+
+    function openLogModal(deptId = null) {
+      const modal = document.getElementById('logActivityModal');
+      const form = document.getElementById('logActivityForm');
+      if (!modal || !form) return;
+
+      form.reset();
+      populateDeptDropdown();
+      document.getElementById('editLogId').value = '';
+      document.getElementById('logModalTitle').textContent = 'Log Clinical Activity';
+
+      const deptSelect = document.getElementById('modalDeptSelect');
+      if (deptId && deptSelect) deptSelect.value = deptId;
+
+      const todayStr = getIsoDateString(new Date());
+      const now = new Date();
+      const timeInput = document.getElementById('modalLogTime');
+      const dateInput = document.getElementById('modalLogDate');
+
+      if (dateInput) dateInput.value = todayStr;
+      if (timeInput) {
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        timeInput.value = `${hh}:${mm}`;
+      }
+
+      handleModalDateChange(todayStr);
+      modal.classList.remove('hidden');
+    }
+
+    function openLogModalForDept(deptId) {
+      const todayStr = getIsoDateString(new Date());
+      const existingTodayLog = state.logs.find(l => l.deptId === deptId && l.date === todayStr);
+      if (existingTodayLog) {
+        editLogEntry(existingTodayLog.id);
+      } else {
+        openLogModal(deptId);
+      }
+    }
+
+    function openLogModalForSelectedDate() {
+      openLogModal();
+      const dateInput = document.getElementById('modalLogDate');
+      if (dateInput && state.selectedCalendarDate) {
+        dateInput.value = state.selectedCalendarDate;
+        handleModalDateChange(state.selectedCalendarDate);
+      }
+    }
+
+    function editLogEntry(logId) {
+      const log = state.logs.find(l => l.id === logId);
+      if (!log) return;
+
+      openLogModal();
+      document.getElementById('editLogId').value = log.id;
+      document.getElementById('logModalTitle').textContent = 'Edit Clinical Log / Note';
+
+      const deptSelect = document.getElementById('modalDeptSelect');
+      if (deptSelect) deptSelect.value = log.deptId;
+
+      const dateInput = document.getElementById('modalLogDate');
+      if (dateInput) {
+        dateInput.value = log.date;
+        handleModalDateChange(log.date);
+      }
+
+      if (log.time) {
+        const timeInput = document.getElementById('modalLogTime');
+        if (timeInput) timeInput.value = convert12to24(log.time);
+      }
+
+      const detailsInput = document.getElementById('modalLogDetails');
+      if (detailsInput) {
+        const hasRealNote = hasNoteContent(log);
+        detailsInput.value = hasRealNote ? log.details : '';
+      }
+    }
+
+    function closeLogModal() {
+      const modal = document.getElementById('logActivityModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function handleModalDateChange(selectedIsoDate) {
+      const todayIso = getIsoDateString(new Date());
+      const label = document.getElementById('modalVisitedLabelDate');
+      const formatted = formatHumanDate(selectedIsoDate);
+
+      if (label) {
+        if (selectedIsoDate === todayIso) {
+          label.textContent = `Mark as Visited Today (${formatted})`;
+        } else {
+          label.textContent = `Record as Visited on ${formatted}`;
+        }
+      }
+    }
+
+    function handleSaveLog(e) {
+      e.preventDefault();
+      const editId = document.getElementById('editLogId').value;
+      const deptId = document.getElementById('modalDeptSelect').value;
+      const logDate = document.getElementById('modalLogDate').value;
+      const timeVal = document.getElementById('modalLogTime').value;
+      const rawDetails = document.getElementById('modalLogDetails').value.trim();
+      const markVisited = document.getElementById('modalMarkVisited').checked;
+
+      let formattedTime = '';
+      if (timeVal) {
+        const [h, m] = timeVal.split(':').map(Number);
+        const dObj = new Date();
+        dObj.setHours(h, m, 0);
+        formattedTime = formatTime12(dObj);
+      } else {
+        formattedTime = formatTime12(new Date());
+      }
+
+      const hasUserNote = rawDetails.length > 0;
+      const details = hasUserNote ? rawDetails : ('Visited at ' + formattedTime);
+
+      // Check if we are editing an existing log
+      if (editId) {
+        const existing = state.logs.find(l => l.id === editId);
+        if (existing) {
+          existing.deptId = deptId;
+          existing.date = logDate;
+          existing.time = formattedTime;
+          existing.details = details;
+          existing.isAutoVisit = !hasUserNote;
+        }
+      } else {
+        // Prevent duplicate entries for the same dept on the same date: update in-place!
+        const existingForDate = state.logs.find(l => l.deptId === deptId && l.date === logDate);
+        if (existingForDate) {
+          existingForDate.time = formattedTime;
+          existingForDate.details = details;
+          existingForDate.isAutoVisit = !hasUserNote;
+        } else {
+          state.logs.push({
+            id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+            deptId: deptId,
+            date: logDate,
+            time: formattedTime,
+            timestamp: Date.now(),
+            details: details,
+            isAutoVisit: !hasUserNote
+          });
+        }
+      }
+
+      // If marked visited and date is today, update department status
+      const todayStr = getIsoDateString(new Date());
+      if (markVisited && logDate === todayStr) {
+        const dept = state.departments.find(d => d.id === deptId);
+        if (dept) dept.visitedDate = todayStr;
+      }
+
+      saveState();
+      closeLogModal();
+      updateKPIs();
+      renderDepartments();
+      renderCalendar();
+      renderTimeline();
+
+      showToast(hasUserNote ? 'Clinical note saved' : 'Department visit recorded');
+    }
+
+    function openAddDeptModal() {
+      const modal = document.getElementById('addDeptModal');
+      const form = document.getElementById('addDeptForm');
+      if (!modal || !form) return;
+      form.reset();
+      modal.classList.remove('hidden');
+    }
+
+    function closeAddDeptModal() {
+      const modal = document.getElementById('addDeptModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function handleCreateDepartment(e) {
+      e.preventDefault();
+      const name = document.getElementById('newDeptName').value.trim();
+      const category = document.getElementById('newDeptCategory').value;
+      const icon = document.getElementById('newDeptIcon').value;
+
+      if (!name) return;
+
+      const newDept = {
+        id: 'dept_' + Date.now(),
+        name: name,
+        category: category,
+        icon: icon || 'fa-user-doctor',
+        visitedDate: null
+      };
+
+      state.departments.push(newDept);
+      saveState();
+      populateDeptDropdown();
+      updateKPIs();
+      renderDepartments();
+      closeAddDeptModal();
+
+      showToast(`Added ${name} Department`);
+    }
+
+    function openDeptDetailsModal(deptId) {
+      state.currentDetailDeptId = deptId;
+      const dept = state.departments.find(d => d.id === deptId);
+      if (!dept) return;
+
+      const modal = document.getElementById('deptDetailsModal');
+      const nameEl = document.getElementById('detailDeptName');
+      const catEl = document.getElementById('detailDeptCategory');
+      const iconEl = document.getElementById('detailDeptIcon');
+      const badgeEl = document.getElementById('detailDeptStatusBadge');
+      const toggleBtn = document.getElementById('detailDeptToggleBtn');
+      const addBtn = document.getElementById('detailAddEntryBtn');
+
+      if (nameEl) nameEl.textContent = dept.name;
+      if (catEl) catEl.textContent = dept.category;
+      if (iconEl) iconEl.innerHTML = `<i class="fa-solid ${dept.icon || 'fa-stethoscope'}"></i>`;
+
+      const todayStr = getIsoDateString(new Date());
+      const isVisited = (dept.visitedDate === todayStr);
+
+      if (badgeEl) {
+        badgeEl.innerHTML = isVisited
+          ? `<span class="text-emerald-700 font-bold">Visited Today (${formatHumanDate(todayStr)})</span>`
+          : `<span class="text-amber-700 font-semibold">Pending Today</span>`;
+      }
+
+      if (toggleBtn) {
+        toggleBtn.textContent = isVisited ? 'Unmark Visited' : 'Mark as Visited';
+        toggleBtn.className = isVisited
+          ? 'px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-rose-100 text-slate-800 hover:text-rose-700 font-bold text-xs transition'
+          : 'px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition';
+      }
+
+      if (addBtn) {
+        addBtn.onclick = () => {
+          closeDeptDetailsModal();
+          openLogModalForDept(dept.id);
+        };
+      }
+
+      renderDeptModalLogs(dept.id);
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function renderDeptModalLogs(deptId) {
+      const container = document.getElementById('detailLogsList');
+      if (!container) return;
+
+      const logs = state.logs.filter(l => l.deptId === deptId);
+      if (logs.length === 0) {
+        container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">No logs for this department yet.</div>`;
+        return;
+      }
+
+      logs.sort((a, b) => b.date.localeCompare(a.date));
+
+      container.innerHTML = logs.map(l => `
+        <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-start justify-between gap-2">
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[11px] font-bold text-slate-900">${formatHumanDate(l.date)}</span>
+              ${l.time ? `<span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200 text-slate-700">${l.time}</span>` : ''}
+            </div>
+            <p class="text-xs text-slate-700 font-medium mt-0.5">${l.details || 'Visited'}</p>
+          </div>
+          <div class="flex items-center gap-1">
+            <button onclick="editLogEntry('${l.id}')" title="Edit Note" class="text-slate-400 hover:text-teal-600 p-1 text-xs">
+              <i class="fa-solid fa-pen"></i>
+            </button>
+            <button onclick="deleteLogEntryPrompt('${l.id}')" title="Delete" class="text-slate-400 hover:text-rose-600 p-1 text-xs">
+              <i class="fa-regular fa-trash-can"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function toggleCurrentDeptVisited() {
+      if (!state.currentDetailDeptId) return;
+      toggleVisitedStatus(state.currentDetailDeptId);
+      openDeptDetailsModal(state.currentDetailDeptId);
+    }
+
+    function closeDeptDetailsModal() {
+      const modal = document.getElementById('deptDetailsModal');
+      if (modal) modal.classList.add('hidden');
+      state.currentDetailDeptId = null;
+    }
+
+    function deleteLogEntryPrompt(logId) {
+      state.pendingDeleteLogId = logId;
+      const modal = document.getElementById('deleteConfirmModal');
+      const confirmBtn = document.getElementById('confirmDeleteBtn');
+      if (!modal || !confirmBtn) return;
+
+      confirmBtn.onclick = () => {
+        executeDeleteLog(logId);
+      };
+      modal.classList.remove('hidden');
+    }
+
+    function closeDeleteConfirmModal() {
+      const modal = document.getElementById('deleteConfirmModal');
+      if (modal) modal.classList.add('hidden');
+      state.pendingDeleteLogId = null;
+    }
+
+    function executeDeleteLog(logId) {
+      state.logs = state.logs.filter(l => l.id !== logId);
+      saveState();
+      closeDeleteConfirmModal();
+
+      if (state.currentDetailDeptId) {
+        renderDeptModalLogs(state.currentDetailDeptId);
+      }
+
+      updateKPIs();
+      renderDepartments();
+      renderCalendar();
+      renderTimeline();
+
+      showToast('Record deleted', 'danger');
+    }
+
+    function confirmResetPrompt() {
+      const modal = document.getElementById('resetConfirmModal');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeResetConfirmModal() {
+      const modal = document.getElementById('resetConfirmModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function executeResetTracker() {
+      state.departments = JSON.parse(JSON.stringify(DEFAULT_DEPARTMENTS));
+      state.archivedDepartments = [];
+      state.logs = [];
+      saveState();
+      closeResetConfirmModal();
+
+      populateDeptDropdown();
+      updateKPIs();
+      renderDepartments();
+      renderCalendar();
+      renderTimeline();
+
+      showToast('Rotations tracker reset to default');
+    }
+
+    function exportDataJSON() {
+      const exportObj = {
+        app: 'MedLog Tracker',
+        version: '2.0',
+        exportedAt: new Date().toISOString(),
+        departments: state.departments,
+        archivedDepartments: state.archivedDepartments || [],
+        logs: state.logs
+      };
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportObj, null, 2));
+      const a = document.createElement('a');
+      a.setAttribute('href', dataStr);
+      a.setAttribute('download', `medical_rotations_backup_${getIsoDateString(new Date())}.json`);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      showToast('Downloaded complete JSON backup');
+    }
+
+    function triggerImportFileInput() {
+      const input = document.getElementById('importFileInput');
+      if (input) {
+        input.value = '';
+        input.click();
+      }
+    }
+
+    function handleImportFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!parsed || (!parsed.departments && !parsed.logs)) {
+            showToast('Invalid backup file format', 'danger');
+            return;
+          }
+          state.stagedImportData = parsed;
+          const deptCount = (parsed.departments || []).length;
+          const logCount = (parsed.logs || []).length;
+
+          const desc = document.getElementById('importSummaryText');
+          if (desc) {
+            desc.innerHTML = `Found <strong>${deptCount} departments</strong> and <strong>${logCount} clinical logs</strong>.`;
+          }
+          const modal = document.getElementById('importConfirmModal');
+          if (modal) modal.classList.remove('hidden');
+        } catch (err) {
+          showToast('Failed to parse JSON file', 'danger');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function closeImportModal() {
+      const modal = document.getElementById('importConfirmModal');
+      if (modal) modal.classList.add('hidden');
+      state.stagedImportData = null;
+    }
+
+    function executeImportData(mode) {
+      const data = state.stagedImportData;
+      if (!data) return;
+
+      if (mode === 'replace') {
+        state.departments = data.departments || [];
+        state.archivedDepartments = data.archivedDepartments || [];
+        state.logs = data.logs || [];
+      } else if (mode === 'merge') {
+        // Merge departments
+        (data.departments || []).forEach(incomingDept => {
+          const exists = state.departments.some(d => d.id === incomingDept.id);
+          const inArch = (state.archivedDepartments || []).some(d => d.id === incomingDept.id);
+          if (!exists && !inArch) {
+            state.departments.push(incomingDept);
+          }
+        });
+
+        // Merge logs without duplicates
+        (data.logs || []).forEach(incomingLog => {
+          const exists = state.logs.some(l => l.id === incomingLog.id || (l.deptId === incomingLog.deptId && l.date === incomingLog.date));
+          if (!exists) {
+            state.logs.push(incomingLog);
+          }
+        });
+      }
+
+      saveState();
+      closeImportModal();
+      populateDeptDropdown();
+      updateKPIs();
+      renderDepartments();
+      renderCalendar();
+      renderTimeline();
+
+      showToast(`Data imported successfully (${mode === 'merge' ? 'Merged' : 'Replaced'})`);
+    }
+  </script>
+</body>
+</html>
